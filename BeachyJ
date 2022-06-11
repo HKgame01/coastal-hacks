@@ -1,0 +1,48 @@
+from google.cloud import firestore
+from flask import *
+from hedera import *
+import os
+
+# User gets a key and an ID
+# Private key is used to sign transactions
+OPERATOR_KEY = PrivateKey.generate()
+PUBLIC_KEY = OPERATOR_KEY.getPublicKey()
+# Default transaction ID for all transactions
+OPERATOR_ID = AccountId
+# Client pre-configured for Testnet access
+client = Client.forTestnet()
+client.setOperator(OPERATOR_ID, OPERATOR_KEY)
+
+app = Flask(__name__)
+
+@app.route("/account_id/<username>")
+def account_id(username):
+  #new account and initial balance
+  transaction = AccountCreateTransaction().setKey(PUBLIC_KEY).setInitialBalance(Hbar(1000))
+  #submit to a Hedera network
+  submission = transaction.execute(client)
+  #receipt of the transaction
+  receipt = submission.getReceipt(client)
+  #account ID
+  Account_ID = receipt.fileId
+  db = firestore.Client()
+  # Creates document
+  db.collection('Beach').document().create({"Username": username})
+
+  return f'Account ID: {Account_ID}'
+
+@app.route("/record/account_id/<Account_ID>")
+def record(Account_ID):
+  # Gets a record of the transactions
+  transaction = TransactionRecordQuery().setTransactionId(Account_ID).execute(client)
+  return transaction
+
+@app.route("/message")
+def message():
+    return "Save your record!"
+
+@app.route("/get_data/username/<username>")
+def get_data(username):
+  # Gets data from database
+  data = jsonify(db.collection("Beach").document(username).to_dict())
+  return data
